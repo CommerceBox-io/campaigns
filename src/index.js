@@ -2,16 +2,22 @@ class Capaigns {
     /**
      * Constructs a new Campaigns instance.
      * @param {Object} options - The options for configuring the search core.
-     * @param {string} [options.uuid=""] - The UUID, hash of user id.
-     * @param {string} options.containerSelector - The CSS selector for the container element.
+     * @param {string} [options.user=""] - The user identifier.
+     * @param {string} [options.website=""] - The website identifier.
      */
-    constructor({uuid = "guest", containerSelector}) {
-        this.endpoint = "https://example.com/campaigns/product-slider"
-        this.container = document.querySelector(containerSelector);
-        this.initializeUser(this, uuid);
+    constructor({user = "guest", website = ""}) {
+        this.endpoint = "https://prism.commercebox.io/api/v1/slider"
+        this.user = user;
+        this.website = website;
+        this.initializeUser(this, user);
         this.fetchData(this).then(data => {
             if (data) {
-                this.container.innerHTML = data.toString();
+                if (data.position) {
+                    const selector = document.querySelector(data.position);
+                    if (selector) {
+                        selector.innerHTML = data.output;
+                    }
+                }
             }
         });
 
@@ -61,24 +67,16 @@ class Capaigns {
      * @returns {Promise} - The promise representing the fetch operation.
      */
     fetchData(context) {
-        const props = {
-            uuid: context.uuid,
-        };
-
-        return fetch(context.endpoint, {
-            method: "POST",
+        const param = context.website ? `?website=${context.website}` : (context.user ? `?user=${context.user}` : '');
+        return fetch(`${context.endpoint}${param}`, {
+            method: "GET",
             headers: {
                 "Content-Type": "application/json;charset=UTF-8",
             },
-            body: JSON.stringify(props),
         })
             .then((response) => response.json())
             .then((data) => {
-                if (data.code !== 200) {
-                    return null;
-                }
-                return data.result;
-
+                return data || null;
             })
             .catch((error) => {
                 console.error("Error fetching data:", error);
