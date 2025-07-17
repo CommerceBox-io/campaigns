@@ -1,4 +1,4 @@
-class Capaigns {
+class Campaigns {
     /**
      * Constructs a new Campaigns instance.
      * @param {Object} options - The options for configuring the search core.
@@ -11,16 +11,131 @@ class Capaigns {
         this.website = website;
         this.initializeUser(this, user);
         this.fetchData(this).then(data => {
-            if (data) {
-                if (data.position) {
-                    const selector = document.querySelector(data.position);
-                    if (selector) {
-                        selector.innerHTML = data.output;
-                    }
-                }
+            if (data?.position && data?.output) {
+                this.insertHtmlAndExecuteScripts(data).then();
             }
         });
 
+    }
+
+    /**
+     * Inserts HTML content into the DOM at the specified position and executes any scripts or loads any stylesheets.
+     * This method handles both inline and external resources, ensuring proper loading order and error handling.
+     *
+     * @param {Object} jsonResponse - The response object containing the HTML content and target position
+     * @param {string} jsonResponse.output - The HTML content to be inserted
+     * @param {string} jsonResponse.position - The CSS selector for the target element where content will be inserted
+     * @returns {Promise<void>} A promise that resolves when all resources are loaded and scripts are executed
+     *
+     */
+    async insertHtmlAndExecuteScripts(jsonResponse) {
+        const { output, position } = jsonResponse;
+
+        const targetElement = document.querySelector(position);
+
+        if (!targetElement) {
+            console.error(`Element with selector "${position}" not found`);
+            return;
+        }
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = output;
+
+        const links = tempDiv.querySelectorAll('link[rel="stylesheet"]');
+        const externalCSS = [];
+
+        links.forEach(link => {
+            if (link.href) {
+                externalCSS.push({
+                    href: link.href,
+                    media: link.media || 'all',
+                    type: link.type || 'text/css'
+                });
+            }
+            // Remove link from the temp div
+            link.remove();
+        });
+
+        const scripts = tempDiv.querySelectorAll('script');
+        const externalScripts = [];
+        const inlineScripts = [];
+
+        scripts.forEach(script => {
+            if (script.src) {
+                externalScripts.push({
+                    type: 'external',
+                    src: script.src,
+                    async: script.async || false,
+                    defer: script.defer || false
+                });
+            } else {
+                inlineScripts.push({
+                    type: 'inline',
+                    content: script.innerHTML || script.textContent
+                });
+            }
+            script.remove();
+        });
+
+        targetElement.innerHTML = tempDiv.innerHTML;
+
+        function loadExternalCSS(linkInfo) {
+            return new Promise((resolve, reject) => {
+                if (document.querySelector(`link[href="${linkInfo.href}"]`)) {
+                    resolve();
+                    return;
+                }
+
+                const linkElement = document.createElement('link');
+                linkElement.rel = 'stylesheet';
+                linkElement.href = linkInfo.href;
+                linkElement.media = linkInfo.media;
+                linkElement.type = linkInfo.type;
+
+                linkElement.onload = () => resolve();
+                linkElement.onerror = () => reject(new Error(`Failed to load CSS: ${linkInfo.href}`));
+
+                document.head.appendChild(linkElement);
+            });
+        }
+
+        function loadExternalScript(scriptInfo) {
+            return new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${scriptInfo.src}"]`)) {
+                    resolve();
+                    return;
+                }
+
+                const scriptElement = document.createElement('script');
+                scriptElement.src = scriptInfo.src;
+                scriptElement.async = scriptInfo.async;
+                scriptElement.defer = scriptInfo.defer;
+
+                scriptElement.onload = () => resolve();
+                scriptElement.onerror = () => reject(new Error(`Failed to load script: ${scriptInfo.src}`));
+
+                document.head.appendChild(scriptElement);
+            });
+        }
+
+        try {
+            await Promise.all([
+                ...externalCSS.map(loadExternalCSS),
+                ...externalScripts.map(loadExternalScript)
+            ]);
+        } catch (error) {
+            console.error('Error loading external resources:', error);
+        }
+
+        // Execute inline scripts after external resources are loaded
+        inlineScripts.forEach(script => {
+            try {
+                console.log(script.content)
+                eval(script.content);
+            } catch (error) {
+                console.error('Error executing inline script:', error);
+            }
+        });
     }
 
     /**
@@ -85,4 +200,4 @@ class Capaigns {
     }
 }
 
-export default Capaigns;
+export default Campaigns;
